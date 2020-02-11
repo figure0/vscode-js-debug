@@ -9,6 +9,10 @@ import { ITestHandle } from '../test';
 // and require Edge (Chromium) to be installed.
 // Get Edge here: https://www.microsoftedgeinsider.com/
 describe('webview breakpoints', function() {
+  // webviews start slower than browsers
+  const timeout = 120 * 1000;
+  this.timeout(timeout);
+
   async function waitForPause(p: ITestHandle, cb?: (threadId: string) => Promise<void>) {
     const { threadId } = p.log(await p.dap.once('stopped'));
     await p.logger.logStackTrace(threadId);
@@ -16,14 +20,14 @@ describe('webview breakpoints', function() {
     return p.dap.continue({ threadId });
   }
 
-  // webview test fails in CI
-  itIntegrates.skip('launched script', async ({ r }) => {
+  itIntegrates('launched script', async ({ r }) => {
     // Breakpoint in separate script set after launch
     const p = await r.launchUrl('script.html', {
       runtimeExecutable: r.workspacePath('webview/win/WebView2Sample.exe'),
       // WebView2Sample.exe will launch about:blank
       urlFilter: 'about:blank',
       useWebView: true,
+      timeout,
     });
     p.load();
     await waitForPause(p, async () => {
