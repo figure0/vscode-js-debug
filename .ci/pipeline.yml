@@ -18,6 +18,7 @@ jobs:
 - job: Windows
   pool:
     vmImage: 'vs2017-win2016'
+  timeoutInMinutes: 20
   steps:
   - powershell: |
       # This step can be removed once Edge is included on the test VM image.
