@@ -14,7 +14,9 @@ import { StreamDapTransport } from '../dap/transport';
  * @param parentSession The parent debug session to pass to `startDebugging`
  * @param config Launch configuration for the new debug session
  */
-const vsCodeSessionLauncher: SessionLauncher<vscode.DebugSession> = (parentSession, _, config) => {
+const vsCodeSessionLauncher: SessionLauncher<vscode.DebugSession> = (parentSession, _, config) =>
+  setTimeout(
+    () =>
   vscode.debug.startDebugging(
     parentSession.debugSession.workspaceFolder,
     config as vscode.DebugConfiguration,
@@ -22,8 +24,9 @@ const vsCodeSessionLauncher: SessionLauncher<vscode.DebugSession> = (parentSessi
       parentSession: parentSession.debugSession,
       consoleMode: vscode.DebugConsoleMode.MergeWithParent,
     },
+      ),
+    500,
   );
-};
 
 /**
  * VS Code specific session manager which also implements the DebugAdapterDescriptorFactory
