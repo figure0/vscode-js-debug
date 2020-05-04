@@ -214,8 +214,7 @@ export class UiProfileManager implements IDisposable {
     const fileUri = vscode.Uri.file(join(directory, filename));
     await this.fs.rename(sourceFile, fileUri.fsPath);
 
-    const document = await vscode.workspace.openTextDocument(fileUri);
-    await vscode.window.showTextDocument(document);
+    await vscode.commands.executeCommand('vscode.open', fileUri);
   }
 
   /**
