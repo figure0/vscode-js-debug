@@ -9,6 +9,31 @@ import * as fsUtils from './fsUtils';
 import { SourceMap } from './sourceMaps/sourceMap';
 import { verifyBytes, verifyFile } from './hash';
 import { LineColumn } from '../adapter/breakpoints/breakpointBase';
+import * as acorn from 'acorn';
+import type * as est from 'estree';
+import { walk as originalWalker } from 'estree-walker';
+import { WalkerContext } from 'estree-walker/types/walker';
+
+export function parseExpression(src: string, offset = 0) {
+  return (acorn.parseExpressionAt(src, offset, {
+    ranges: true,
+    allowReserved: true,
+    allowReturnOutsideFunction: true,
+    allowImportExportEverywhere: true,
+    allowAwaitOutsideFunction: true,
+    allowHashBang: true,
+  }) as unknown) as est.Node;
+}
+
+export const walk = (ast: est.Node, fn: (node: est.Node, context: WalkerContext) => void) =>
+  originalWalker(ast, {
+    enter(node: est.BaseNode) {
+      fn(node as est.Node, this);
+    },
+  });
+
+export const getNodeStart = (node: est.Node) => (node.range as [number, number])[0];
+export const getNodeEnd = (node: est.Node) => (node.range as [number, number])[1];
 
 export async function prettyPrintAsSourceMap(
   fileName: string,

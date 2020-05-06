@@ -2,8 +2,9 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import type * as est from 'estree';
 import Cdp from '../../cdp/api';
+import { walk, parseExpression, getNodeStart, getNodeEnd } from '../../common/sourceUtils';
 
 /**
  * Creates a template for the given function that replaces its arguments
@@ -49,63 +50,58 @@ export function templateFunction<Args extends unknown[]>(
 export function templateFunctionStr<Args extends string[]>(
   stringified: string,
 ): (...args: Args) => string {
-  const sourceFile = ts.createSourceFile('test.js', stringified, ts.ScriptTarget.ESNext, true);
+  const sourceFile = parseExpression(stringified);
 
   // 1. Find the function.
-  let decl: ts.FunctionLike | undefined;
-  ts.forEachChild(sourceFile, function traverse(node) {
-    if (ts.isFunctionLike(node)) {
+  let decl: est.FunctionExpression | undefined;
+  walk(sourceFile, (node, ctx) => {
+    if (node.type === 'FunctionExpression') {
       decl = node;
-    } else {
-      ts.forEachChild(node, traverse);
+      ctx.skip();
     }
   });
 
-  if (!decl || !('body' in decl) || !decl.body) {
+  if (!decl || !decl.body) {
     throw new Error(`Could not find function declaration for:\n\n${stringified}`);
   }
 
   // 2. Get parameter names.
-  const params = decl.parameters.map(p => {
-    if (!ts.isIdentifier(p.name)) {
+  const params = decl.params.map(p => {
+    if (p.type !== 'Identifier') {
       throw new Error('Parameter must be identifier');
     }
 
-    return p.name.text;
+    return p.name;
   });
 
   // 3. Gather usages of the parameter in the source.
   const replacements: { start: number; end: number; param: number }[] = [];
-  ts.forEachChild(decl.body, function traverse(node) {
-    if (ts.isIdentifier(node) && params.includes(node.text)) {
+  walk(decl.body, node => {
+    if (node.type === 'Identifier' && params.includes(node.name)) {
       replacements.push({
-        start: node.getStart(),
-        end: node.getEnd(),
-        param: params.indexOf(node.text),
+        start: getNodeStart(node),
+        end: getNodeEnd(node),
+        param: params.indexOf(node.name),
       });
     }
-
-    ts.forEachChild(node, traverse);
   });
 
   replacements.sort((a, b) => b.end - a.end);
 
   // 4. Sort usages and slice up the function appropriately, wraping in an IIFE.
   const parts: string[] = [];
-  let lastIndex = decl.body.getEnd() - 1;
+  let lastIndex = getNodeEnd(decl.body) - 1;
   for (const replacement of replacements) {
     parts.push(stringified.slice(replacement.end, lastIndex));
     parts.push(`__args${replacement.param}`);
     lastIndex = replacement.start;
   }
 
-  parts.push(stringified.slice(decl.body.getStart() + 1, lastIndex));
+  parts.push(stringified.slice(getNodeStart(decl.body) + 1, lastIndex));
   const body = parts.reverse().join('');
 
-  return (...args) => `(() => {
-    ${args.map((a, i) => `let __args${i} = ${a}`).join('; ')};
-    ${body}
-  })();`;
+  return (...args) =>
+    `(()=>{${args.map((a, i) => `let __args${i}=${a}`).join(';')};${body}})();`;
 }
 
 /**

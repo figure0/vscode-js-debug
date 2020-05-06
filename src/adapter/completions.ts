@@ -2,15 +2,15 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 
-import * as ts from 'typescript';
 import Dap from '../dap/api';
 import Cdp from '../cdp/api';
 import { StackFrame } from './stackTrace';
-import { positionToOffset } from '../common/sourceUtils';
+import { positionToOffset, walk, parseExpression } from '../common/sourceUtils';
 import { enumerateProperties, enumeratePropertiesTemplate } from './templates/enumerateProperties';
 import { injectable, inject } from 'inversify';
 import { IEvaluator, returnValueStr } from './evaluator';
 import { ICdpApi } from '../cdp/connection';
+import type * as est from 'estree';
 
 /**
  * Context in which a completion is being evaluated.
@@ -70,55 +70,54 @@ export const enum CompletionKind {
 /**
  * Tries to infer the completion kind for the given TypeScript node.
  */
-const inferCompletionKindForDeclaration = (node: ts.Declaration) => {
-  if (ts.isClassLike(node)) {
-    return CompletionKind.Class;
-  } else if (ts.isMethodDeclaration(node)) {
-    return CompletionKind.Method;
-  } else if (ts.isConstructorDeclaration(node)) {
-    return CompletionKind.Constructor;
-  } else if (ts.isPropertyDeclaration(node)) {
-    return CompletionKind.Property;
-  } else if (ts.isVariableDeclarationList(node)) {
-    return CompletionKind.Variable;
-  } else if (ts.isVariableDeclaration(node)) {
-    return node.initializer && ts.isFunctionLike(node.initializer)
-      ? CompletionKind.Function
-      : CompletionKind.Variable;
-  } else if (ts.isStringLiteral(node)) {
-    return CompletionKind.Text;
-  } else if (ts.isNumericLiteral(node) || ts.isBigIntLiteral(node)) {
-    return CompletionKind.Value;
-  } else if (ts.isInterfaceDeclaration(node)) {
-    return CompletionKind.Interface;
-  } else if (ts.isTypeAliasDeclaration(node)) {
-    return CompletionKind.Interface;
-  } else {
-    return undefined;
+const inferCompletionKindForDeclaration = (node: est.Node) => {
+  if (node.type === 'MethodDefinition') {
+    switch (node.kind) {
+      case 'constructor':
+        return CompletionKind.Constructor;
+      case 'get':
+        return CompletionKind.Property;
+      case 'set':
+        return CompletionKind.Property;
+      default:
+        return CompletionKind.Method;
+    }
   }
+
+  if (node.type === 'VariableDeclaration') {
+    return node.declarations.some(d => completionKindMap.get(d.type) === CompletionKind.Function)
+      ? CompletionKind.Method
+      : CompletionKind.Variable;
+  }
+
+  if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+    return CompletionKind.Class;
+  }
+
+  return undefined;
 };
 
-function maybeHasSideEffects(node: ts.Node): boolean {
+function maybeHasSideEffects(node: est.Node): boolean {
   let result = false;
-  traverse(node);
 
-  function traverse(node: ts.Node) {
-    if (result) return;
-    if (
-      node.kind === ts.SyntaxKind.CallExpression ||
-      node.kind === ts.SyntaxKind.NewExpression ||
-      node.kind === ts.SyntaxKind.DeleteExpression ||
-      node.kind === ts.SyntaxKind.ClassExpression
+  walk(node, (child, context) => {
+    if (result) {
+      context.skip();
+    } else if (
+      child.type === 'CallExpression' ||
+      child.type === 'NewExpression' ||
+      (child.type === 'UnaryExpression' && child.operator === 'delete') ||
+      child.type === 'ClassExpression'
     ) {
       result = true;
-      return;
+      context.skip();
     }
-    ts.forEachChild(node, traverse);
-  }
+  });
+
   return result;
 }
 
-const isDeclarationStatement = (node: ts.Node): node is ts.DeclarationStatement => 'name' in node;
+const isDeclarationStatement = (node: est.Node): node is est.Declaration => node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration' || node.type === 'VariableDeclaration';;
 
 export const ICompletions = Symbol('ICompletions');
 
@@ -142,7 +141,7 @@ export class Completions {
   async completions(
     options: ICompletionContext & ICompletionExpression,
   ): Promise<Dap.CompletionItem[]> {
-    const sourceFile = ts.createSourceFile(
+    const sourceFile = parseExpression(
       'test.js',
       options.expression,
       ts.ScriptTarget.ESNext,

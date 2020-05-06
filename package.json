@@ -49,8 +49,10 @@
   },
   "dependencies": {
     "@c4312/chromehash": "^0.2.0",
+    "acorn": "^7.1.1",
     "color": "^3.1.2",
     "default-browser": "^2.0.1",
+    "estree-walker": "^2.0.1",
     "execa": "^4.0.0",
     "glob-stream": "^6.1.0",
     "inversify": "^5.0.1",
@@ -76,6 +78,7 @@
   "devDependencies": {
     "@mixer/parallel-prettier": "^2.0.0",
     "@pptr/testrunner": "^0.8.0",
+    "@types/acorn": "^4.0.5",
     "@types/chai": "^4.2.11",
     "@types/chai-as-promised": "^7.1.2",
     "@types/chai-string": "^1.4.2",

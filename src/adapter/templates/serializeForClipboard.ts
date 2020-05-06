@@ -73,7 +73,7 @@ export function safeSerializer(
  * Safe-stringifies the value as JSON, replacing
  */
 export const serializeForClipboardTmpl = templateFunctionStr<[string, string]>(`
-  function (valueToStringify, spaces) {
+  function serializeForClipboard(valueToStringify, spaces) {
     try {
       if (typeof valueToStringify === 'function') {
         return '' + valueToStringify;

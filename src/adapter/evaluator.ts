@@ -3,10 +3,10 @@
  *--------------------------------------------------------*/
 
 import Cdp from '../cdp/api';
-import * as ts from 'typescript';
 import { randomBytes } from 'crypto';
 import { inject, injectable } from 'inversify';
 import { ICdpApi } from '../cdp/connection';
+import { parseExpression, walk, getNodeStart, getNodeEnd } from '../common/sourceUtils';
 
 export const returnValueStr = '$returnValue';
 
@@ -130,28 +130,21 @@ export class Evaluator implements IEvaluator {
    * returning the modified expression if it was found.
    */
   private replaceReturnValue(expr: string, hoistedVar: string): string | undefined {
-    const sourceFile = ts.createSourceFile(
-      'test.js',
-      expr,
-      ts.ScriptTarget.ESNext,
-      /*setParentNodes */ true,
-    );
+    const sourceFile = parseExpression(expr);
 
     let adjust = 0;
     let found = false;
 
     const replacement = `(typeof ${hoistedVar} !== 'undefined' ? ${hoistedVar} : undefined)`;
-    const replace = (node: ts.Node) => {
-      if (ts.isIdentifier(node) && node.text === returnValueStr) {
-        expr = expr.slice(0, node.getStart() + adjust) + replacement + expr.slice(node.getEnd());
-        adjust += node.getEnd() - node.getStart() - replacement.length;
+
+    walk(sourceFile, node => {
+      if (node.type === 'Identifier' && node.name === returnValueStr) {
+        expr =
+          expr.slice(0, getNodeStart(node) + adjust) + replacement + expr.slice(getNodeEnd(node));
+        adjust += getNodeEnd(node) - getNodeStart(node) - replacement.length;
         found = true;
       }
-
-      ts.forEachChild(node, replace);
-    };
-
-    replace(sourceFile);
+    });
 
     return found ? expr : undefined;
   }
