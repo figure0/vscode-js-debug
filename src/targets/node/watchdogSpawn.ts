@@ -5,7 +5,6 @@
 import { join } from 'path';
 import * as net from 'net';
 import { RawPipeTransport } from '../../cdp/rawPipeTransport';
-import { Logger } from '../../common/logging/logger';
 import Cdp from '../../cdp/api';
 import { WebSocketTransport } from '../../cdp/webSocketTransport';
 import { NeverCancelled } from '../../common/cancellation';
@@ -14,6 +13,7 @@ import { IDisposable } from '../../common/disposable';
 import { EventEmitter } from '../../common/events';
 import { spawn } from 'child_process';
 import { IStopMetadata } from '../targets';
+import { nullLogger } from '../../common/logging/nullLogger';
 
 export interface IWatchdogInfo {
   /**
@@ -90,7 +90,7 @@ export class WatchDog implements IDisposable {
       cnx.on('error', reject);
     });
 
-    const server = new RawPipeTransport(Logger.null, pipe);
+    const server = new RawPipeTransport(nullLogger, pipe);
     return new WatchDog(info, server);
   }
 

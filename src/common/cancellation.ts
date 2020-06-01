@@ -56,6 +56,22 @@ export function cancellableRace<T>(
   return Promise.race(todo);
 }
 
+type ListenerFactory<T> = (listener: (evt: T) => void) => IDisposable;
+
+export function raceEvents<A>(events: [ListenerFactory<A>]): Promise<A>;
+export function raceEvents<A, B>(events: [ListenerFactory<A>, ListenerFactory<B>]): Promise<A | B>;
+export function raceEvents<T>(events: ListenerFactory<T>[]): Promise<T> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promises: Promise<any>[] = [];
+  const disposables: IDisposable[] = [];
+
+  for (const factory of events) {
+    promises.push(new Promise(resolve => disposables.push(factory(resolve))));
+  }
+
+  return Promise.race(promises).finally(() => disposables.forEach(d => d.dispose()));
+}
+
 const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
   const handle = setTimeout(callback.bind(context), 0);
   return {

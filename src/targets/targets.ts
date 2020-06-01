@@ -6,7 +6,7 @@ import { CancellationToken } from 'vscode';
 import Cdp from '../cdp/api';
 import { IDisposable, IEvent } from '../common/events';
 import { ISourcePathResolver } from '../common/sourcePathResolver';
-import { AnyLaunchConfiguration } from '../configuration';
+import { AnyLaunchConfiguration, AnyResolvingConfiguration } from '../configuration';
 import Dap from '../dap/api';
 import { ITelemetryReporter } from '../telemetry/telemetryReporter';
 import { ITargetOrigin } from './targetOrigin';
@@ -118,19 +118,24 @@ export interface ILauncher extends IDisposable {
   restart(): Promise<void>;
 
   /**
-   * Event that fires when targets connect or disconnect.
-   */
-  onTargetListChanged: IEvent<void>;
-
-  /**
    * List of currently connected debug targets.
    */
   targetList(): ITarget[];
 
   /**
+   * Event that fires when targets connect or disconnect.
+   */
+  readonly onTargetListChanged: IEvent<void>;
+
+  /**
    * An event that fires when the debug session has ended.
    */
-  onTerminated: IEvent<IStopMetadata>;
+  readonly onTerminated: IEvent<IStopMetadata>;
+
+  /**
+   * An event that fires when the target wants to start a separate debug session.
+   */
+  readonly onDebugRequest?: IEvent<AnyResolvingConfiguration>;
 }
 
 export interface IWebViewConnectionInfo {

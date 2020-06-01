@@ -372,6 +372,10 @@ interface ICDPOperationClassification {
   'tracing.tracingcomplete': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
   '!tracing.tracingcomplete.errors': { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 
+  // Domain: VSCode
+  'vscode.requestbrowserlaunch': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+  '!vscode.requestbrowserlaunch.errors': { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+
   // Domain: WebAudio
   'webaudio.contextcreated': { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
   '!webaudio.contextcreated.errors': { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };

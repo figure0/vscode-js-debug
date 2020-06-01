@@ -65,6 +65,7 @@ export namespace Cdp {
     Target: TargetApi;
     Tethering: TetheringApi;
     Tracing: TracingApi;
+    VSCode: VSCodeApi;
     WebAudio: WebAudioApi;
     WebAuthn: WebAuthnApi;
   }
@@ -14394,6 +14395,15 @@ export namespace Cdp {
       | 'corp-not-same-site';
 
     /**
+     * Source of serviceworker response.
+     */
+    export type ServiceWorkerResponseSource =
+      | 'cache-storage'
+      | 'http-cache'
+      | 'fallback-code'
+      | 'network';
+
+    /**
      * HTTP response data.
      */
     export interface Response {
@@ -14481,6 +14491,21 @@ export namespace Cdp {
        * Timing information for the given request.
        */
       timing?: ResourceTiming;
+
+      /**
+       * Response source of response from ServiceWorker.
+       */
+      serviceWorkerResponseSource?: ServiceWorkerResponseSource;
+
+      /**
+       * The time at which the returned response was generated.
+       */
+      responseTime?: TimeSinceEpoch;
+
+      /**
+       * Cache Storage Cache Name.
+       */
+      cacheStorageCacheName?: string;
 
       /**
        * Protocol used to fetch this request.
@@ -22804,6 +22829,44 @@ export namespace Cdp {
      * Compression type to use for traces returned via streams.
      */
     export type StreamCompression = 'none' | 'gzip';
+  }
+
+  /**
+   * Methods and events of the 'VSCode' domain.
+   */
+  export interface VSCodeApi {
+    /**
+     * Sent from the pseudo "browser" back to the node launcher indicating that the target wants to open a browser
+     */
+    on(
+      event: 'requestBrowserLaunch',
+      listener: (event: VSCode.RequestBrowserLaunchEvent) => void,
+    ): IDisposable;
+  }
+
+  /**
+   * Types of the 'VSCode' domain.
+   */
+  export namespace VSCode {
+    /**
+     * Parameters of the 'VSCode.requestBrowserLaunch' event.
+     */
+    export interface RequestBrowserLaunchEvent {
+      /**
+       * Desired URL to open
+       */
+      url: string;
+
+      /**
+       * Additional arguments to pass to the manifest
+       */
+      args: BrowserArgument[];
+    }
+
+    /**
+     * Argument to pass when launching the browser
+     */
+    export type BrowserArgument = string;
   }
 
   /**

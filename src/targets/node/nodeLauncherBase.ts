@@ -16,7 +16,7 @@ import {
   ILaunchContext,
   IStopMetadata,
 } from '../../targets/targets';
-import { AnyLaunchConfiguration, AnyNodeConfiguration } from '../../configuration';
+import { AnyLaunchConfiguration, AnyNodeConfiguration, AnyResolvingConfiguration } from '../../configuration';
 import { EnvironmentVars } from '../../common/environmentVars';
 import { INodeTargetLifecycleHooks, NodeTarget } from './nodeTarget';
 import { NodeSourcePathResolver } from './nodeSourcePathResolver';
@@ -28,11 +28,12 @@ import { ITelemetryReporter } from '../../telemetry/telemetryReporter';
 import { NodeBinaryProvider, INodeBinaryProvider } from './nodeBinaryProvider';
 import { ILogger } from '../../common/logging';
 import { inject, injectable } from 'inversify';
-import { CancellationTokenSource } from '../../common/cancellation';
+import { CancellationTokenSource, raceEvents } from '../../common/cancellation';
 import { RawPipeTransport } from '../../cdp/rawPipeTransport';
 import { IBootloaderEnvironment, IBootloaderInfo } from './bootloader/environment';
 import { bootloaderDefaultPath } from './watchdogSpawn';
 import { once } from '../../common/objUtils';
+import { DebugType } from '../../common/contributionUtils';
 
 /**
  * Telemetry received from the nested process.
@@ -93,12 +94,23 @@ export abstract class NodeLauncherBase<T extends AnyNodeConfiguration> implement
    * Underlying emitter fired when sessions terminate. Listened to by the
    * binder and used to trigger a `terminate` message on the DAP.
    */
-  private onTerminatedEmitter = new EventEmitter<IStopMetadata>();
+  private readonly onTerminatedEmitter = new EventEmitter<IStopMetadata>();
+
+  /**
+   * Fires to start a separate debug session. Used when we see a browser request
+   * come in from e.g. create-react-app.
+   */
+  protected readonly onDebugRequestEmitter = new EventEmitter<AnyResolvingConfiguration>();
 
   /**
    * @inheritdoc
    */
   public readonly onTerminated = this.onTerminatedEmitter.event;
+
+  /**
+   * @inheritdoc
+   */
+  public readonly onDebugRequest = this.onDebugRequestEmitter.event;
 
   /**
    * @inheritdoc
@@ -363,7 +375,13 @@ export abstract class NodeLauncherBase<T extends AnyNodeConfiguration> implement
   }
 
   protected async _startSession(socket: net.Socket, telemetryReporter: ITelemetryReporter) {
-    const { connection, cdp, targetInfo } = await this.acquireTarget(socket, telemetryReporter);
+    const acquisition = await this.acquireTarget(socket, telemetryReporter);
+    if (!acquisition) {
+      socket.destroy();
+      return;
+    }
+
+    const { connection, cdp, targetInfo } = acquisition;
     if (!this.run) {
       // if we aren't running a session, discard the socket.
       socket.destroy();
@@ -397,11 +415,25 @@ export abstract class NodeLauncherBase<T extends AnyNodeConfiguration> implement
     );
     this.serverConnections.push(connection);
     const cdp = connection.rootSession();
-    const { targetInfo } = await new Promise<Cdp.Target.TargetCreatedEvent>(f =>
-      cdp.Target.on('targetCreated', f),
-    );
 
-    return { targetInfo, cdp, connection };
+    const evt = await raceEvents<Cdp.Target.TargetCreatedEvent, Cdp.VSCode.RequestBrowserLaunchEvent>([
+      l => cdp.Target.on('targetCreated', l),
+      l => cdp.VSCode.on('requestBrowserLaunch', l),
+    ])
+
+    if ('url' in evt) {
+      this.onDebugRequestEmitter.fire({
+        type: DebugType.Chrome,
+        request: 'launch',
+        name: evt.url,
+        runtimeArgs: evt.args,
+      });
+
+      return undefined;
+    }
+
+
+    return { targetInfo: evt.targetInfo, cdp, connection };
   }
 
   /**

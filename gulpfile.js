@@ -190,6 +190,7 @@ async function runWebpack({
     { entry: `${buildSrcDir}/common/hash/hash.js`, library: false },
     { entry: `${buildSrcDir}/${nodeTargetsDir}/bootloader.js`, library: false },
     { entry: `${buildSrcDir}/${nodeTargetsDir}/watchdog.js`, library: false },
+    { entry: `${buildSrcDir}/${nodeTargetsDir}/pseudoBrowser.js`, library: false },
   ];
 
   let configs = [];
